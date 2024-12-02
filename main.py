@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import mysql.connector as mysql2
 from subprocess import call
-from klasifikasi3 import accuracy, precision, recall, conf_matrix, labels
+from klasifikasi import accuracy, precision, recall, conf_matrix, labels
 # from preprocessing import label_counts
 
 app = Flask(__name__)
