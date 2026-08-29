@@ -5,9 +5,7 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-import swifter
 from sqlalchemy import create_engine
-import logging
 
 # Ensure NLTK resources are available
 for resource in ['punkt', 'punkt_tab', 'stopwords']:
@@ -28,6 +26,9 @@ except Exception as e:
     df = pd.DataFrame(columns=['text', 'label'])
 
 if not df.empty:
+    # Filter out header rows that may have slipped into the database
+    df = df[~df['text'].astype(str).str.strip().str.lower().isin(['full_text', 'fulltext', 'tweet', 'text', 'created_at', ''])].copy()
+
     # Handle NaN values in the 'text' and 'label' columns
     df['text'] = df['text'].fillna('').astype(str)
     df['label'] = df['label'].fillna('Netral').astype(str)
@@ -59,12 +60,15 @@ if not df.empty:
     # Remove multiple whitespace into single whitespace
     df['text_clean'] = df['text_clean'].apply(lambda x: re.sub(r'\s+', ' ', x))
 
+    # Filter out rows that became empty
+    df = df[df['text_clean'].str.strip() != ''].copy()
+
     # NLTK word tokenize
     df['token'] = df['text_clean'].apply(word_tokenize)
 
     # NORMALISASI
     kamus_normalisasi = pd.read_csv("kamus/slang.csv")
-    kata_normalisasi_dict = {row[0]: row[1] for index, row in kamus_normalisasi.iterrows()}
+    kata_normalisasi_dict = dict(zip(kamus_normalisasi.iloc[:, 0], kamus_normalisasi.iloc[:, 1]))
 
     def normalisasi_kata(document):
         return [kata_normalisasi_dict.get(term, term) for term in document]
@@ -81,16 +85,21 @@ if not df.empty:
 
     df['stopwords'] = df['normalisasi'].apply(stopwords_removal)
 
-    # Create stemmer
+    # Create stemmer with memoization caching for high performance & no virtual in-memory issues
     factory = StemmerFactory()
     stemmer = factory.create_stemmer()
+    stem_cache = {}
 
-    # Stemmed
-    def stemmed_wrapper(term):
-        return stemmer.stem(term)
+    def cached_stem(term):
+        if term not in stem_cache:
+            stem_cache[term] = stemmer.stem(term)
+        return stem_cache[term]
+
+    def stem_list(words):
+        return [cached_stem(term) for term in words if term]
 
     # Apply stemming
-    df['stemming'] = df['stopwords'].swifter.apply(lambda x: [stemmed_wrapper(term) for term in x if term])
+    df['stemming'] = df['stopwords'].apply(stem_list)
 
     # Convert list of tokens to string with spaces
     df['token'] = df['token'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else str(x))

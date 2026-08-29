@@ -53,7 +53,7 @@ def Dataset():
         return "Tidak ada file yang diupload", 400
 
     cur = mysql.connection.cursor()
-    cur.execute("SELECT id, tgl_tweet, full_text FROM ikn")
+    cur.execute("SELECT id, tgl_tweet, full_text FROM ikn WHERE full_text NOT IN ('full_text', 'tweet', 'text')")
     data = cur.fetchall()
     cur.close()
     return render_template('dataset.html', ikn=data)
@@ -61,53 +61,83 @@ def Dataset():
 
 def parseDatasetCSV(filePath):
     print("Memparsing CSV di:", filePath)
-    col_names = ['conversation_id_str', 'tgl_tweet', 'fav_count', 'full_text', 'id_str', 'img_url', 
-                 'in_reply_to_screen_name', 'lang', 'location', 'quote_count', 'reply_count', 
-                 'retweet_count', 'tweet_url', 'user_id_str', 'username']
+    HEADER_KEYWORDS = {'full_text', 'tweet', 'text', 'created_at', 'tgl_tweet', 'conversation_id_str', 'username', 'content'}
+
     try:
+        # Coba baca 5 baris pertama untuk memeriksa header
         try:
-            csvData = pd.read_csv(filePath, names=col_names, header=None, encoding='utf-8')
+            sample_df = pd.read_csv(filePath, nrows=5, encoding='utf-8')
         except UnicodeDecodeError:
-            csvData = pd.read_csv(filePath, names=col_names, header=None, encoding='latin1')
-        csvData = csvData.where(pd.notnull(csvData), None)
-        print("Data CSV Berhasil Dimuat")
-    except Exception as e:
-        print("Gagal memuat CSV:", e)
-        return
+            sample_df = pd.read_csv(filePath, nrows=5, encoding='latin1')
+        
+        cols_lower = [str(c).strip().lower() for c in sample_df.columns]
+        has_header = any(c in HEADER_KEYWORDS for c in cols_lower)
 
-    # Lewati baris header jika ada
-    first_row = csvData.iloc[0]
-    if str(first_row.get('full_text', '')).lower() in ['full_text', 'tweet', 'text']:
-        csvData = csvData.iloc[1:]
+        if has_header:
+            try:
+                csvData = pd.read_csv(filePath, encoding='utf-8')
+            except UnicodeDecodeError:
+                csvData = pd.read_csv(filePath, encoding='latin1')
+            
+            # Cari kolom teks, tanggal, username
+            text_col = next((c for c in csvData.columns if str(c).strip().lower() in ['full_text', 'tweet', 'text', 'content']), None)
+            date_col = next((c for c in csvData.columns if str(c).strip().lower() in ['tgl_tweet', 'created_at', 'date', 'tanggal']), None)
+            user_col = next((c for c in csvData.columns if str(c).strip().lower() in ['username', 'user', 'screen_name']), None)
 
-    values = []
-    for _, row in csvData.iterrows():
-        tgl = row.get('tgl_tweet')
-        text = row.get('full_text')
-        user = row.get('username')
-        if text:
-            values.append((str(tgl) if tgl else '', str(text), str(user) if user else ''))
+            if not text_col:
+                text_col = csvData.columns[3] if len(csvData.columns) > 3 else csvData.columns[0]
+            if not date_col and len(csvData.columns) > 1:
+                date_col = csvData.columns[1]
+            if not user_col and len(csvData.columns) > 14:
+                user_col = csvData.columns[14]
 
-    if values:
-        sql = """
-        INSERT INTO ikn (tgl_tweet, full_text, username) 
-        VALUES (%s, %s, %s)
-        """
-        try:
+            values = []
+            for _, row in csvData.iterrows():
+                txt = str(row.get(text_col, '')).strip() if pd.notnull(row.get(text_col)) else ''
+                tgl = str(row.get(date_col, '')).strip() if date_col and pd.notnull(row.get(date_col)) else ''
+                usr = str(row.get(user_col, '')).strip() if user_col and pd.notnull(row.get(user_col)) else ''
+                
+                # Jangan masukkan jika baris ini adalah header
+                if txt and txt.lower() not in HEADER_KEYWORDS:
+                    if tgl.lower() not in HEADER_KEYWORDS:
+                        values.append((tgl, txt, usr))
+        else:
+            col_names = ['conversation_id_str', 'tgl_tweet', 'fav_count', 'full_text', 'id_str', 'img_url', 
+                         'in_reply_to_screen_name', 'lang', 'location', 'quote_count', 'reply_count', 
+                         'retweet_count', 'tweet_url', 'user_id_str', 'username']
+            try:
+                csvData = pd.read_csv(filePath, names=col_names, header=None, encoding='utf-8')
+            except UnicodeDecodeError:
+                csvData = pd.read_csv(filePath, names=col_names, header=None, encoding='latin1')
+            
+            values = []
+            for _, row in csvData.iterrows():
+                tgl = str(row.get('tgl_tweet', '')).strip() if pd.notnull(row.get('tgl_tweet')) else ''
+                txt = str(row.get('full_text', '')).strip() if pd.notnull(row.get('full_text')) else ''
+                usr = str(row.get('username', '')).strip() if pd.notnull(row.get('username')) else ''
+                
+                if txt and txt.lower() not in HEADER_KEYWORDS:
+                    if tgl.lower() not in HEADER_KEYWORDS:
+                        values.append((tgl, txt, usr))
+
+        if values:
+            sql = """
+            INSERT INTO ikn (tgl_tweet, full_text, username) 
+            VALUES (%s, %s, %s)
+            """
             cur = mysql.connection.cursor()
             cur.executemany(sql, values)
             mysql.connection.commit()
             cur.close()
-            print(f"{len(values)} data berhasil dimasukkan ke tabel ikn")
-        except Exception as err:
-            print("Kesalahan dalam SQL Insert:", err)
-            mysql.connection.rollback()
+            print(f"{len(values)} data berhasil dimasukkan ke tabel ikn (baris header diabaikan).")
+    except Exception as e:
+        print("Gagal memuat CSV:", e)
 
 
 @app.route('/pelabelan')
 def pelabelan():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT text, label FROM labelled")
+    cur.execute("SELECT text, label FROM labelled WHERE text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
     data = cur.fetchall()
     cur.close()
     return render_template('labelling.html', ikn_labelled=data)
@@ -135,7 +165,7 @@ def pelabelan2():
         return "Tidak ada file yang diupload", 400
 
     cur = mysql.connection.cursor()
-    cur.execute("SELECT text, label FROM labelled")
+    cur.execute("SELECT text, label FROM labelled WHERE text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
     data = cur.fetchall()
     cur.close()
     return render_template('labelling2.html', ikn_labelled=data)
@@ -143,62 +173,55 @@ def pelabelan2():
 
 def parseLabellingCSV(filePath):
     print("Memparsing CSV Label di:", filePath)
+    HEADER_KEYWORDS = {'full_text', 'tweet', 'text', 'created_at', 'label', 'label2', 'sentiment', 'sentimen'}
     try:
         try:
             csvData = pd.read_csv(filePath, encoding='utf-8')
         except UnicodeDecodeError:
             csvData = pd.read_csv(filePath, encoding='latin1')
         csvData = csvData.where(pd.notnull(csvData), None)
-        print("Data CSV Label Berhasil Dimuat")
-    except Exception as e:
-        print("Gagal memuat CSV Label:", e)
-        return
-
-    # Deteksi nama kolom (text, label) atau tanpa header
-    cols = [c.lower() for c in csvData.columns]
-    values = []
-    if 'text' in cols and ('label' in cols or 'label2' in cols):
-        label_col = 'label2' if 'label2' in cols else 'label'
-        for _, row in csvData.iterrows():
-            txt = row.get('text')
-            lbl = row.get(label_col)
-            if txt:
-                values.append((str(txt), str(lbl) if lbl else 'Netral'))
-    else:
-        # Fallback baca ulang tanpa header
-        try:
+        
+        cols = [str(c).strip().lower() for c in csvData.columns]
+        values = []
+        if 'text' in cols and ('label' in cols or 'label2' in cols):
+            label_col = 'label2' if 'label2' in cols else 'label'
+            for _, row in csvData.iterrows():
+                txt = str(row.get('text', '')).strip()
+                lbl = str(row.get(label_col, '')).strip()
+                if txt and txt.lower() not in HEADER_KEYWORDS:
+                    values.append((txt, lbl if lbl else 'Netral'))
+        else:
             try:
-                raw_data = pd.read_csv(filePath, header=None, encoding='utf-8')
-            except UnicodeDecodeError:
-                raw_data = pd.read_csv(filePath, header=None, encoding='latin1')
-            for _, row in raw_data.iterrows():
-                txt = row[0]
-                lbl = row[1] if len(row) > 1 else 'Netral'
-                if txt and str(txt).lower() not in ['text', 'tweet']:
-                    values.append((str(txt), str(lbl)))
-        except Exception as e:
-            print("Gagal memproses baris CSV Label:", e)
+                try:
+                    raw_data = pd.read_csv(filePath, header=None, encoding='utf-8')
+                except UnicodeDecodeError:
+                    raw_data = pd.read_csv(filePath, header=None, encoding='latin1')
+                for _, row in raw_data.iterrows():
+                    txt = str(row[0]).strip() if pd.notnull(row[0]) else ''
+                    lbl = str(row[1]).strip() if len(row) > 1 and pd.notnull(row[1]) else 'Netral'
+                    if txt and txt.lower() not in HEADER_KEYWORDS:
+                        values.append((txt, lbl))
+            except Exception as e:
+                print("Gagal membaca CSV Label raw:", e)
 
-    if values:
-        sql = """
-        INSERT INTO labelled (text, label) 
-        VALUES (%s, %s)
-        """
-        try:
+        if values:
+            sql = """
+            INSERT INTO labelled (text, label) 
+            VALUES (%s, %s)
+            """
             cur = mysql.connection.cursor()
             cur.executemany(sql, values)
             mysql.connection.commit()
             cur.close()
-            print(f"{len(values)} data label berhasil dimasukkan")
-        except Exception as err:
-            print("Kesalahan dalam SQL Insert Label:", err)
-            mysql.connection.rollback()
+            print(f"{len(values)} data label berhasil dimasukkan (baris header diabaikan).")
+    except Exception as e:
+        print("Gagal memuat CSV Label:", e)
 
 
 @app.route('/preprocessing')
 def preprocessing():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT text, text_clean, token, normalisasi, stopwords, stemming, label from preprocessing")
+    cur.execute("SELECT text, text_clean, token, normalisasi, stopwords, stemming, label from preprocessing WHERE text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
     data = cur.fetchall()
     cur.close()
     return render_template('preprocessing.html', ikn_prepro=data)
@@ -214,7 +237,7 @@ def preprocess():
 @app.route('/train')
 def train():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT text, label from train")
+    cur.execute("SELECT text, label from train WHERE text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
     data = cur.fetchall()
     cur.close()
     return render_template('train.html', ikn_train=data)
@@ -223,7 +246,7 @@ def train():
 @app.route('/test')
 def test():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT text, label from test")
+    cur.execute("SELECT text, label from test WHERE text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
     data = cur.fetchall()
     cur.close()
     return render_template('test.html', ikn_test=data)
@@ -260,7 +283,7 @@ def evaluasi():
 
     try:
         cur = mysql.connection.cursor()
-        cur.execute("SELECT Text, true_label, predicted_label from klasifikasi")
+        cur.execute("SELECT Text, true_label, predicted_label from klasifikasi WHERE Text NOT IN ('full_text', 'tweet', 'text', 'created_at')")
         data = cur.fetchall()
         cur.close()
 

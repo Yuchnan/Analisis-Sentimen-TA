@@ -14,6 +14,8 @@ except Exception as e:
     df = pd.DataFrame(columns=["text"])
 
 if not df.empty:
+    # Filter baris header jika ada
+    df = df[~df['text'].astype(str).str.strip().str.lower().isin(['full_text', 'fulltext', 'tweet', 'text', 'created_at', ''])].copy()
     df['text'] = df['text'].fillna('').astype(str)
 
     # Membaca kamus positif dan negatif
