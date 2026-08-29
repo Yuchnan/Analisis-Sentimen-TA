@@ -9,16 +9,26 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title>Analisis Sentimen</title>
+    <title>Analisis Sentimen - Import Data Label</title>
 
     <!-- Custom fonts for this template-->
     <link href="/static/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link
         href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
         rel="stylesheet">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+
+    <!-- DataTables -->
+    <link rel="stylesheet" href="/static/css/dataTable.css">
+
     <!-- Custom styles for this template-->
     <link href="/static/css/sb-admin-2.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css" integrity="sha512-KfkfwYDsLkIlwQp6LFnl8zNdLGxu9YAA1QvwINks4PhcElQSvqcyVLLD9aMhXd13uQjoXtEKNosOWaZqXgel0g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css"
+        integrity="sha512-KfkfwYDsLkIlwQp6LFnl8zNdLGxu9YAA1QvwINks4PhcElQSvqcyVLLD9aMhXd13uQjoXtEKNosOWaZqXgel0g=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 </head>
 
@@ -39,71 +49,54 @@
             <hr class="sidebar-divider my-0">
 
             <!-- Nav Item - Dashboard -->
-            
-            <!-- Nav Item - Dashboard -->
-            <li class="nav-item active">
+            <li class="nav-item">
                 <a class="nav-link collapsed" href="/">
                     <i class="fa-solid fa-gears"></i>
                     <span>Beranda</span>
                 </a>
             </li>
 
-            <li class="nav-item">
+            <li class="nav-item active">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse show" data-target="#collapseTwo"
                     aria-expanded="true" aria-controls="collapseTwo">
                     <i class="fa-solid fa-gears"></i>
                     <span>Master Data</span>
                 </a>
-                <div id="collapseTwo" class="collapse show" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
+                <div id="collapseTwo" class="collapse show" aria-labelledby="headingTwo"
+                    data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <a class="collapse-item" href=/dataset>Import Dataset</a>
-                        <a class="collapse-item" href=/pelabelan>Pelabelan</a>
-                        <a class="collapse-item" href=/pelabelan2>Import Data Label</a>
-                        <a class="collapse-item" href=/preprocessing>Preprocessing</a>
-                        <a class="collapse-item" href=/train>Data Latih</a>
+                        <a class="collapse-item" href="/dataset">Import Dataset</a>
+                        <a class="collapse-item" href="/pelabelan">Pelabelan</a>
+                        <a class="collapse-item active" href="/pelabelan2">Import Data Label</a>
+                        <a class="collapse-item" href="/preprocessing">Preprocessing</a>
+                        <a class="collapse-item" href="/train">Data Latih</a>
                         <a class="collapse-item" href="/test">Data Uji</a>
                     </div>
                 </div>
             </li>
-            
+
             <li class="nav-item">
                 <a class="nav-link collapsed" href="/evaluasi">
                     <i class="fa-solid fa-gears"></i>
                     <span>Evaluasi</span>
                 </a>
             </li>
-            
+
             <li class="nav-item">
                 <a class="nav-link collapsed" href="/visualisasi">
                     <i class="fa-solid fa-gears"></i>
                     <span>Visualisasi Data</span>
                 </a>
             </li>
-            
-            <!-- <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUtilities"
-                    aria-expanded="true" aria-controls="collapseUtilities">
-                    <i class="fa-solid fa-brain"></i>
-                    <span>Labelling</span>
-                </a>
-                <div id="collapseUtilities" class="collapse" aria-labelledby="headingUtilities"
-                    data-parent="#accordionSidebar">
-                    <div class="bg-white py-2 collapse-inner rounded">
-                        <a class="collapse-item" href="/preprocessing">Labelling Otomatis</a>
-                    </div>
-                </div>
-            </li> -->
 
             <hr class="sidebar-divider my-0">
-            
+
             <li class="nav-item">
                 <a class="nav-link hapus-data" href="javascript:void(0)">
-                <i class="fa-solid fa-trash"></i>
+                    <i class="fa-solid fa-trash"></i>
                     <span>Hapus Data</span>
                 </a>
             </li>
-
-   
 
             <div id="deleteModal" class="modal" tabindex="-1" role="dialog">
                 <div class="modal-dialog" role="document">
@@ -111,7 +104,7 @@
                         <div class="modal-header">
                             <h5 class="modal-title">Hapus Data</h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
+                                <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
                         <div class="modal-body">
@@ -124,21 +117,6 @@
                     </div>
                 </div>
             </div>
-            <!-- Divider -->
-            
-
-            
-
-            
-
-            <!-- Heading -->
-            
-
-           
-
-           
-
-           
 
         </ul>
         <!-- End of Sidebar -->
@@ -156,8 +134,6 @@
                     <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
                         <i class="fa fa-bars"></i>
                     </button>
-
-                    
 
                     <!-- Topbar Navbar -->
                     <ul class="navbar-nav ml-auto">
@@ -177,26 +153,59 @@
 
                 <!-- Begin Page Content -->
                 <div class="container-fluid">
-                    
-                    <h1> TUGAS AKHIR</h1> <br><br>
-                    <h2>2011500333 - RAMANDHANU YUCHNAN UTOMO</h2><br><br>
-                    <h2>IMPLEMENTASI TEXT MINING PADA ANALISIS SENTIMEN OPINI MASYRAKAT TERHADAP PEMINDAHAN IBUKOTA KE IKN NUSANTARA MENGGUNAKAN ALGORITMA MULTINOMIAL NAÏVE BAYES</h2>
+
+                    <div class="row">
+
+                        <div class="col-xl-12">
+
+                            <div class="card shadow mb-4">
+                                <div
+                                    class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">Import Data Label</h6>
+                                </div>
+
+                                <!-- Card Body -->
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-start">
+                                        <form action="/pelabelan2" method="POST" enctype="multipart/form-data">
+                                            <input class="form-control" name="file" type="file" id="formFile" accept=".csv" required>
+                                            <div class="d-grid gap-2">
+                                                <input class="btn btn-primary mt-2" type="submit" value="Import Data Label">
+                                            </div>
+                                        </form>
+                                    </div>
+                                    <button class="btn btn-danger mt-2" onclick="location.href='/deletelabel'">Hapus Data</button>
+                                    <div class="table-responsive mt-3">
+                                        <table id="myTable" class="display">
+                                            <thead>
+                                                <tr>
+                                                    <th>Text</th>
+                                                    <th>Sentimen</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for row in ikn_labelled %}
+                                                <tr>
+                                                    <td>{{row.0}}</td>
+                                                    <td>{{row.1}}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
 
                 </div>
                 <!-- /.container-fluid -->
 
             </div>
             <!-- End of Main Content -->
-
-            <!-- Footer -->
-            <!-- <footer class="sticky-footer bg-white">
-                <div class="container my-auto">
-                    <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; Your Website 2021</span>
-                    </div>
-                </div>
-            </footer> -->
-            <!-- End of Footer -->
 
         </div>
         <!-- End of Content Wrapper -->
@@ -209,11 +218,8 @@
         <i class="fas fa-angle-up"></i>
     </a>
 
-    
-
-
     <!-- Bootstrap core JavaScript-->
-    <script src="/static/vendor/jquery/jquery.min.js"></script>
+    <script src="/static/jquery-3.7.1.min.js"></script>
     <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
     <!-- Core plugin JavaScript-->
@@ -225,35 +231,26 @@
     <!-- Page level plugins -->
     <script src="/static/vendor/chart.js/Chart.min.js"></script>
 
-    <!-- Page level custom scripts -->
-    <script src="/static/js/demo/chart-area-demo.js"></script>
-    <script src="/static/js/demo/chart-pie-demo.js"></script>
-    
+    <!-- DataTable -->
+    <script src="/static/js/dataTable.js"></script>
     <script>
-        $(document).ready(function() {
-            // Get the modal
-            var modal = $("#deleteModal");
+        $(document).ready(function () {
+            $('#myTable').DataTable({
+                "scrollY": "50vh",
+                "scrollCollapse": true,
+                "paging": true
+            });
+        });
+    </script>
 
-            // Get the button that opens the modal
+    <script>
+        $(document).ready(function () {
+            var modal = $("#deleteModal");
             var btn = $(".nav-link.hapus-data");
 
-            // When the user clicks the button, open the modal 
-            btn.click(function() {
+            btn.click(function () {
                 modal.modal("show");
             });
-
-            // Get the "Ya" button in the modal
-            var deleteBtn = $("#deleteData");
-
-            // When the user clicks the "Ya" button, delete the data
-            deleteBtn.click(function() {
-            $.post("", {delete: true}, function(response) {
-                console.log("Data deleted successfully");
-                alert("Data Berhasil Dihapus");
-                location.reload();
-            });
-            modal.modal("hide");
-        });
         });
     </script>
 

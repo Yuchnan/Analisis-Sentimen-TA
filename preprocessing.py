@@ -1,130 +1,111 @@
-from pymysql import connect
 import pandas as pd
 import re
 import string
+import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-import nltk
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 import swifter
 from sqlalchemy import create_engine
 import logging
 
-# connect to the database
-conn = connect(host='localhost',
-               user='root',
-               passwd='',
-               database='ta2')
+# Ensure NLTK resources are available
+for resource in ['punkt', 'punkt_tab', 'stopwords']:
+    try:
+        nltk.download(resource, quiet=True)
+    except Exception:
+        pass
 
 # Membuat engine koneksi ke MySQL menggunakan SQLAlchemy
 engine = create_engine("mysql+pymysql://root:@localhost/ta2")
 
-# define cursor object
-cur = conn.cursor()
-# define query to select text from table labelled
-query = "SELECT * FROM labelled"
-# execute query
-cur.execute(query)
-df = pd.read_sql(query, conn)
+# Define query to select text and label from table labelled
+query = "SELECT text, label FROM labelled"
+try:
+    df = pd.read_sql(query, con=engine)
+except Exception as e:
+    print("Gagal membaca tabel labelled:", e)
+    df = pd.DataFrame(columns=['text', 'label'])
 
-# Handle NaN values in the 'text' column
-df['text'] = df['text'].fillna('')
+if not df.empty:
+    # Handle NaN values in the 'text' and 'label' columns
+    df['text'] = df['text'].fillna('').astype(str)
+    df['label'] = df['label'].fillna('Netral').astype(str)
 
-# casefolding
-df['text_clean'] = df['text'].str.lower()
+    # casefolding
+    df['text_clean'] = df['text'].str.lower()
 
-# Cleansing
-def remove_tweet_special(text):
-    text = text.replace('\\t', " ").replace('\\n', " ").replace('\\u', " ").replace('\\', " ")
-    text = text.encode('ascii', 'replace').decode('ascii')
-    text = ' '.join(re.sub("([@#][A-Za-z0-9]+)|(\\w+:\\/\\/\\S+)", " ", text).split())
-    return text.replace("http://", " ").replace("https://", " ")
+    # Cleansing
+    def remove_tweet_special(text):
+        text = text.replace('\\t', " ").replace('\\n', " ").replace('\\u', " ").replace('\\', " ")
+        text = text.encode('ascii', 'replace').decode('ascii')
+        text = ' '.join(re.sub(r"([@#][A-Za-z0-9_]+)|(\w+:\/\/\S+)", " ", text).split())
+        return text.replace("http://", " ").replace("https://", " ")
 
-df['text_clean'] = df['text_clean'].apply(remove_tweet_special)
+    df['text_clean'] = df['text_clean'].apply(remove_tweet_special)
 
-# Menghilangkan data duplikat
-df.drop_duplicates(subset='text_clean', keep='first', inplace=True)
+    # Menghilangkan data duplikat berdasarkan text_clean
+    df.drop_duplicates(subset='text_clean', keep='first', inplace=True)
 
-# Remove number
-df['text_clean'] = df['text_clean'].apply(lambda x: re.sub(r"\d", "", x))
+    # Remove number
+    df['text_clean'] = df['text_clean'].apply(lambda x: re.sub(r"\d+", "", x))
 
-# Remove punctuation
-df['text_clean'] = df['text_clean'].apply(lambda x: x.translate(str.maketrans("", "", string.punctuation)))
+    # Remove punctuation
+    df['text_clean'] = df['text_clean'].apply(lambda x: x.translate(str.maketrans("", "", string.punctuation)))
 
-# Remove whitespace leading & trailing
-df['text_clean'] = df['text_clean'].apply(lambda x: x.strip())
+    # Remove whitespace leading & trailing
+    df['text_clean'] = df['text_clean'].apply(lambda x: x.strip())
 
-# Remove multiple whitespace into single whitespace
-df['text_clean'] = df['text_clean'].apply(lambda x: re.sub(r'\s+', ' ', x))
+    # Remove multiple whitespace into single whitespace
+    df['text_clean'] = df['text_clean'].apply(lambda x: re.sub(r'\s+', ' ', x))
 
-# NLTK word tokenize
-df['token'] = df['text_clean'].apply(word_tokenize)
+    # NLTK word tokenize
+    df['token'] = df['text_clean'].apply(word_tokenize)
 
-# NORMALISASI
-kamus_normalisasi = pd.read_csv("kamus/slang.csv")
-kata_normalisasi_dict = {row[0]: row[1] for index, row in kamus_normalisasi.iterrows()}
+    # NORMALISASI
+    kamus_normalisasi = pd.read_csv("kamus/slang.csv")
+    kata_normalisasi_dict = {row[0]: row[1] for index, row in kamus_normalisasi.iterrows()}
 
-def normalisasi_kata(document):
-    return [kata_normalisasi_dict.get(term, term) for term in document]
+    def normalisasi_kata(document):
+        return [kata_normalisasi_dict.get(term, term) for term in document]
 
-df['normalisasi'] = df['token'].apply(normalisasi_kata)
+    df['normalisasi'] = df['token'].apply(normalisasi_kata)
 
-# Stopwords
-nltk.download('stopwords')
-list_stopwords = set(stopwords.words('indonesian'))
-# Menambahkan stopwords tambahan
-list_stopwords.update(["prabowogibran", "prabowo", "anies", "ganjar", "lohh", "loh", "ahhh", "aaah", "ae", "yang", "nih", "ah", "wkwkwk",
-                       "wkwk", "wk", "wkwkwkwk", "lhoo", "lho", "ah", "ahh", "lohh", "ahm", "sih", "ya", "eh"])
-print(list_stopwords)
-def stopwords_removal(words):
-    return [word for word in words if word not in list_stopwords]
-df['stopwords'] = df['normalisasi'].apply(stopwords_removal)
+    # Stopwords
+    list_stopwords = set(stopwords.words('indonesian'))
+    list_stopwords.update(["prabowogibran", "prabowo", "anies", "ganjar", "lohh", "loh", "ahhh", "aaah", "ae", "yang", "nih", "ah", "wkwkwk",
+                           "wkwk", "wk", "wkwkwkwk", "lhoo", "lho", "ah", "ahh", "lohh", "ahm", "sih", "ya", "eh", "yg", "dgn", "bgt"])
 
-# Create stemmer
-factory = StemmerFactory()
-stemmer = factory.create_stemmer()
+    def stopwords_removal(words):
+        return [word for word in words if word not in list_stopwords]
 
-# Stemmed
-def stemmed_wrapper(term):
-    return stemmer.stem(term)
+    df['stopwords'] = df['normalisasi'].apply(stopwords_removal)
 
-# Apply stemming
-df['stemming'] = df['stopwords'].swifter.apply(lambda x: [stemmed_wrapper(term) for term in x])
+    # Create stemmer
+    factory = StemmerFactory()
+    stemmer = factory.create_stemmer()
 
-# Convert list of tokens to string with spaces
-df['token'] = df['token'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else x)
-df['normalisasi'] = df['normalisasi'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else x)
-df['stopwords'] = df['stopwords'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else x)
-df['stemming'] = df['stemming'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else x)
+    # Stemmed
+    def stemmed_wrapper(term):
+        return stemmer.stem(term)
 
-# Memindahkan kolom label ke paling kanan
-columns = [col for col in df.columns if col != 'label'] + ['label']
-df = df[columns]
+    # Apply stemming
+    df['stemming'] = df['stopwords'].swifter.apply(lambda x: [stemmed_wrapper(term) for term in x if term])
 
-# Menyimpan ke dalam CSV dan SQL
-df.to_csv("ikn_prepro.csv", index=False)
-df.to_sql(name='preprocessing', con=engine, if_exists='replace', index=False)
+    # Convert list of tokens to string with spaces
+    df['token'] = df['token'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else str(x))
+    df['normalisasi'] = df['normalisasi'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else str(x))
+    df['stopwords'] = df['stopwords'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else str(x))
+    df['stemming'] = df['stemming'].apply(lambda x: ' '.join(map(str, x)) if isinstance(x, list) else str(x))
 
-# # Menggabungkan teks asli dengan label untuk analisis lebih lanjut
-# df_text = pd.read_csv('ikn_prepro.csv', usecols=['text'])
-# df_label = pd.read_csv('ikn_labelled.csv', usecols=['label'])
-# df_merged = pd.concat([df_text, df_label], axis=1)
-# df_merged.columns = ["text", "label"]
+    # Pastikan urutan kolom sesuai dengan tabel dan template preprocessing.html:
+    # 0: text, 1: text_clean, 2: token, 3: normalisasi, 4: stopwords, 5: stemming, 6: label
+    columns = ['text', 'text_clean', 'token', 'normalisasi', 'stopwords', 'stemming', 'label']
+    df = df[columns]
 
-# # Menyimpan hasil gabungan ke file Excel
-# df_merged.to_excel('data_sentimen_ikn.xlsx', index=False)
-
-# # Fungsi untuk menghitung jumlah data per label
-# def count_labels(df):
-#     label_counts = df['label'].value_counts()
-#     print("Jumlah data per label:")
-#     print(label_counts)
-#     return label_counts
-# label_counts = count_labels(df)
-
-# df_label_counts = pd.DataFrame(label_counts).reset_index()
-# df_label_counts.columns = ['Label', 'Jumlah']
-# df_label_counts.to_csv("label_counts.csv", index=False)
-
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+    # Menyimpan ke dalam CSV dan SQL
+    df.to_csv("ikn_prepro.csv", index=False)
+    df.to_sql(name='preprocessing', con=engine, if_exists='replace', index=False)
+    print("Preprocessing selesai dan data berhasil disimpan!")
+else:
+    print("Data labelled kosong, preprocessing dilewati.")
