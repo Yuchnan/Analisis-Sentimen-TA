@@ -18,13 +18,16 @@ f1 = 0.0
 labels = ['Negatif', 'Netral', 'Positif']
 conf_matrix = np.zeros((3, 3))
 
-def calculate_prior(y):
+def calculate_prior(y, power=0.5):
     classes, counts = np.unique(y, return_counts=True)
     total_count = len(y)
-    priors = {cls: count / total_count for cls, count in zip(classes, counts)}
-    return priors
+    raw_priors = {cls: count / total_count for cls, count in zip(classes, counts)}
+    # Power-scaled priors to prevent class imbalance collapse
+    priors = {cls: raw_priors[cls] ** power for cls in classes}
+    norm_sum = sum(priors.values())
+    return {cls: v / norm_sum for cls, v in priors.items()}
 
-def calculate_likelihood(X, y, classes, alpha=1):
+def calculate_likelihood(X, y, classes, alpha=0.05):
     vocab_size = X.shape[1]
     likelihood = {}
     for cls in classes:
@@ -36,7 +39,6 @@ def calculate_likelihood(X, y, classes, alpha=1):
 def predict_document(doc, priors, likelihood, classes):
     log_probs = {}
     for cls in classes:
-        # Menghindari log(0)
         p_cls = priors.get(cls, 1e-9)
         l_cls = np.where(likelihood[cls] <= 0, 1e-9, likelihood[cls])
         log_prob = np.log(p_cls) + doc @ np.log(l_cls)
@@ -62,15 +64,31 @@ def run_classification():
     X_test_text = test_df['text'].fillna('').astype(str)
     y_test = test_df['label'].fillna('Netral').astype(str)
 
-    # Mentransformasi data teks menggunakan TfidfVectorizer
-    tfidf_vectorizer = TfidfVectorizer(decode_error='replace', encoding='utf-8', ngram_range=(1, 1), max_features=5000)
-    X_train = tfidf_vectorizer.fit_transform(X_train_text)
-    X_test = tfidf_vectorizer.transform(X_test_text)
+    # Mentransformasi data teks menggunakan TfidfVectorizer dengan unigram & bigram
+    tfidf_vectorizer = TfidfVectorizer(decode_error='replace', encoding='utf-8', ngram_range=(1, 2), max_features=4000, sublinear_tf=True, min_df=1)
+    X_train_sp = tfidf_vectorizer.fit_transform(X_train_text)
+    X_test_sp = tfidf_vectorizer.transform(X_test_text)
 
     # Mendapatkan fitur (vocabulary)
     features = tfidf_vectorizer.get_feature_names_out()
 
-    tf = X_train.toarray()
+    # Baca kamus untuk memberi bobot fitur sentimen
+    pos_file = "kamus/positive.tsv"
+    neg_file = "kamus/negative.tsv"
+    pos_set = set(pd.read_csv(pos_file, sep="\t", header=None)[0].astype(str).str.lower().str.strip()) if os.path.exists(pos_file) else set()
+    neg_set = set(pd.read_csv(neg_file, sep="\t", header=None)[0].astype(str).str.lower().str.strip()) if os.path.exists(neg_file) else set()
+    sentiment_lexicon = pos_set | neg_set
+
+    # Matriks bobot penguat kata sentimen
+    feature_weights = np.ones(len(features))
+    for idx, f in enumerate(features):
+        if f in sentiment_lexicon:
+            feature_weights[idx] = 2.5
+
+    X_train = X_train_sp.toarray() * feature_weights
+    X_test = X_test_sp.toarray() * feature_weights
+
+    tf = X_train_sp.toarray()
     idf = tfidf_vectorizer.idf_
     tfidf = tf * idf
     df_tf = pd.DataFrame(tf, columns=features)
@@ -83,18 +101,17 @@ def run_classification():
 
     # Training Multinomial Naive Bayes secara manual
     classes = np.unique(y_train)
-    priors = calculate_prior(y_train)
-    likelihood = calculate_likelihood(X_train.toarray(), y_train, classes, alpha=1)
+    priors = calculate_prior(y_train, power=0.5)
+    likelihood = calculate_likelihood(X_train, y_train, classes, alpha=0.05)
 
     print("Distribusi kelas dalam data pelatihan:")
     print(y_train.value_counts())
-    print("\nPrior Probabilities:")
+    print("\nPrior Probabilities (Calibrated):")
     for cls, prior in priors.items():
         print(f"Kelas '{cls}': {prior:.4f}")
 
     # Memprediksi label set pengujian
-    X_test_arr = X_test.toarray()
-    y_pred_manual = np.array([predict_document(doc, priors, likelihood, classes) for doc in X_test_arr])
+    y_pred_manual = np.array([predict_document(doc, priors, likelihood, classes) for doc in X_test])
 
     # Metrik Evaluasi
     accuracy = accuracy_score(y_test, y_pred_manual)

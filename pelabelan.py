@@ -1,6 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine
 import os
+import re
+import string
 
 # Membuat engine koneksi ke MySQL menggunakan SQLAlchemy
 engine = create_engine("mysql+pymysql://root:@localhost/ta2")
@@ -23,21 +25,24 @@ if not df.empty:
     neg_file = "kamus/negative.tsv"
     
     if os.path.exists(pos_file):
-        positive_lexicon = set(pd.read_csv(pos_file, sep="\t", header=None)[0].astype(str).str.lower())
+        positive_lexicon = set(pd.read_csv(pos_file, sep="\t", header=None)[0].astype(str).str.lower().str.strip())
     else:
         positive_lexicon = set()
 
     if os.path.exists(neg_file):
-        negative_lexicon = set(pd.read_csv(neg_file, sep="\t", header=None)[0].astype(str).str.lower())
+        negative_lexicon = set(pd.read_csv(neg_file, sep="\t", header=None)[0].astype(str).str.lower().str.strip())
     else:
         negative_lexicon = set()
 
-    # Fungsi untuk menentukan sentimen dan skor
+    # Fungsi untuk menentukan sentimen dan skor dengan tokenisasi bersih
     def determine_sentiment_and_score(text):
-        words = str(text).lower().split()
+        cleaned = re.sub(r"https?://\S+|@\w+|#\w+|\d+", " ", str(text).lower())
+        words = [w.strip(string.punctuation) for w in cleaned.split() if w.strip(string.punctuation)]
+        
         positive_count = sum(1 for word in words if word in positive_lexicon)
         negative_count = sum(1 for word in words if word in negative_lexicon)
         total_score = positive_count - negative_count
+
         if total_score > 0:
             sentiment = "Positif"
         elif total_score < 0:
@@ -54,6 +59,7 @@ if not df.empty:
     # Menyimpan ke file CSV dan SQL database
     df.to_csv("ikn_labelled.csv", index=False)
     df.to_sql(name='labelled', con=engine, if_exists='replace', index=False)
-    print("Pelabelan selesai dan data berhasil disimpan!")
+    print(f"Pelabelan selesai: {len(df)} data berhasil dilabeli!")
+    print(df['label'].value_counts())
 else:
     print("Tabel ikn kosong, pelabelan dilewati.")
